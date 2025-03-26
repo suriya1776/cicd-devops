@@ -22,8 +22,6 @@ jobs:
           java-version: '21'
           ## if you need to generate a specific Maven settings.xml config file
           ## refer to: https://docs.github.com/en/actions/publishing-packages/publishing-java-packages-with-maven
-          ...
-          ...
 
       - name: Run the scan against the codebase
         id: run-scan
