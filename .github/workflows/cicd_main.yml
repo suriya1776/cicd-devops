@@ -2,33 +2,41 @@ name: Main cicd
 run-name: Running the CICD 
 
 on:
- push:
-  branches:
-   - main
- pull_request:
-   branches:
-    - main
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
 
 jobs:
-  modified_microservies:
+  modified_microservices:
     runs-on: ubuntu-latest
     outputs:
-      changed_Services: ${{ steps.filter.outputs.any_changed }}
+      changed_services: ${{ steps.filter.outputs.any_changed }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name:  Detect the changed microservice
+      - name: Detect changed microservices
         id: filter
         uses: dorny/paths-filter@v2
         with:
-         filters: |
-           any_changed:
+          list-files: json  # Enables listing changed files
+          filters: |
+            any_changed:
               - 'src/**'
+
+      - name: Debug changed files
+        run: |
+          echo "Changed files: ${{ steps.filter.outputs.any_changed_files }}"
+        shell: bash
+
       - name: Extract Microservice Names
         id: extract
         run: |
-          echo "Changed files: ${{ steps.filter.outputs.any_changed_files }}"
-          SERVICES=$(echo '${{ steps.filter.outputs.any_changed_files }}' | jq -r '[.[] | capture("src/(?<service>[^/]+)/.*") | .service] | unique | join(",")')
+          FILES_JSON='${{ steps.filter.outputs.any_changed_files }}'
+          SERVICES=$(echo "$FILES_JSON" | jq -r '[.[] | capture("src/(?<service>[^/]+)/.*") | .service] | unique | join(",")')
+          echo "Detected services: $SERVICES"
           echo "services=$SERVICES" >> $GITHUB_ENV
         shell: bash
