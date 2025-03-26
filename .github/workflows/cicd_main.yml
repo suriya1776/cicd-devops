@@ -1,5 +1,5 @@
-name: Main cicd 
-run-name: Running the CICD 
+name: Main CICD
+run-name: Running the CICD
 
 on:
   push:
@@ -24,22 +24,16 @@ jobs:
         id: filter
         uses: dorny/paths-filter@v2
         with:
-          list-files: json  # Enables listing changed files
+          list-files: json
           filters: |
             any_changed:
               - 'src/**'
-
-      - name: Debug changed files
-        run: |
-          echo "Changed files: ${{ steps.filter.outputs.any_changed_files }}"
-        shell: bash
 
       - name: Extract Microservice Names
         id: extract
         run: |
           FILES_JSON='${{ steps.filter.outputs.any_changed_files }}'
           SERVICES=$(echo "$FILES_JSON" | jq -r '[.[] | capture("src/(?<service>[^/]+)/.*") | .service] | unique | join(",")')
-          echo "Detected services: $SERVICES"
           echo "services=$SERVICES" >> $GITHUB_ENV
         shell: bash
 
@@ -58,8 +52,8 @@ jobs:
             fi
           done
 
-          DOTNET_SERVICES=${DOTNET_SERVICES%,} # Remove trailing comma
-          JAVA_SERVICES=${JAVA_SERVICES%,}     # Remove trailing comma
+          DOTNET_SERVICES=${DOTNET_SERVICES%,}
+          JAVA_SERVICES=${JAVA_SERVICES%,}
 
           echo "dotnet_services=$DOTNET_SERVICES" >> $GITHUB_ENV
           echo "java_services=$JAVA_SERVICES" >> $GITHUB_ENV
@@ -68,8 +62,33 @@ jobs:
           echo "::set-output name=java_services::$JAVA_SERVICES"
         shell: bash
 
-      - name: Debug Language Detection
+  build-and-push:
+    needs: modified_microservices
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Login to GHCR
         run: |
-          echo "Changed .NET services: ${{ steps.detect_lang.outputs.dotnet_services }}"
-          echo "Changed Java services: ${{ steps.detect_lang.outputs.java_services }}"
-        shell: bash
+          echo "${{ secrets.DOCKER_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Build and Push .NET Images
+        if: needs.modified_microservices.outputs.dotnet_services != ''
+        run: |
+          for service in $(echo ${{ needs.modified_microservices.outputs.dotnet_services }} | tr ',' ' '); do
+            IMAGE_NAME="ghcr.io/${{ github.repository }}/$service:latest"
+            echo "Building and pushing $IMAGE_NAME"
+            docker build -t $IMAGE_NAME .
+            docker push $IMAGE_NAME
+          done
+
+      - name: Build and Push Java Images
+        if: needs.modified_microservices.outputs.java_services != ''
+        run: |
+          for service in $(echo ${{ needs.modified_microservices.outputs.java_services }} | tr ',' ' '); do
+            IMAGE_NAME="ghcr.io/${{ github.repository }}/$service:latest"
+            echo "Building and pushing $IMAGE_NAME"
+            docker build -t $IMAGE_NAME src/$service
+            docker push $IMAGE_NAME
+          done
