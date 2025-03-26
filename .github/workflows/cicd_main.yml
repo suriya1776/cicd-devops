@@ -1,56 +1,27 @@
-name: Detect File Changes
-run-name: Detecting File Changes
+name: Building the microservice
+run-name: Building the microservice
 
 on:
-  push:
-    branches:
-      - main
-  pull_request:
-    branches:
-      - main
+ push:
+  branches: 
+    - main
+ pull_request:
+  branches:
+    - main
 
 jobs:
-  detect_changes:
+  Detect_microservice:
     runs-on: ubuntu-latest
-    outputs:
-      changed_services: ${{ steps.extract.outputs.services }}
+    outputs: 
+      changed_service: "None" 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Detect changed files
-        id: detect_files
-        run: |
-          git fetch origin main
-          CHANGED_FILES=$(git diff --name-only origin/main ${{ github.sha }})
-
-          if [ -z "$CHANGED_FILES" ]; then
-            echo "No files changed."
-            exit 0
-          fi
-
-          echo "Changed Files:"
-          echo "$CHANGED_FILES"
-          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
-
-      - name: Debug Show changed files
-        run: |
-         echo "Changed Files: ${{ env.CHANGED_FILES }}"
-
-      - name: Extract Microservice Names
-        id: extract
-        run: |
-          FILES="${{ env.CHANGED_FILES }}"
-          SERVICES=$(echo "$FILES" | grep -oP '(?<=src/)[^/]+(?=/)' | sort | uniq | tr '\n' ',' | sed 's/,$//')
-
-          if [ -z "$SERVICES" ]; then
-            echo "No microservices changed."
-            SERVICES="none"
-          fi
-
-          echo "Changed Services: $SERVICES"
-          echo "services=$SERVICES" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Debug: Show changed services
-        run: echo "Changed Services: ${{ env.services }}"
+      - name: detect the microservice folder
+        uses: dorny/paths-filter@v3
+           id: detection
+           with: 
+            filters:
+              src:
+                - 'src/**'
