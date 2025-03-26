@@ -17,6 +17,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Detect changed files
+        id: detect_files
         run: |
           git fetch origin main
           CHANGED_FILES=$(git diff --name-only origin/main ${{ github.sha }})
@@ -28,8 +29,8 @@ jobs:
 
           echo "Changed Files:"
           echo "$CHANGED_FILES"
+          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_ENV
 
-      - name: Debug: Show changed files
-        run: echo "Changed Files: $CHANGED_FILES"
-        env:
-          CHANGED_FILES: ${{ steps.detect_files.outputs.changed_files }}
+      - name: Debug Show changed files
+        run: | 
+         echo "Changed Files: ${{ env.CHANGED_FILES }}"
