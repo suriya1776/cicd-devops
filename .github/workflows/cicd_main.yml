@@ -13,7 +13,7 @@ jobs:
   modified_microservices:
     runs-on: ubuntu-latest
     outputs:
-      changed_services: ${{ steps.filter.outputs.any_changed }}
+      changed_services: ${{ steps.extract.outputs.services }}
       dotnet_services: ${{ steps.detect_lang.outputs.dotnet_services }}
       java_services: ${{ steps.detect_lang.outputs.java_services }}
     steps:
@@ -29,12 +29,22 @@ jobs:
             any_changed:
               - 'src/**'
 
+      - name: Debug: Show changed files
+        run: echo "Changed Files: ${{ steps.filter.outputs.any_changed_files }}"
+
       - name: Extract Microservice Names
         id: extract
         run: |
           FILES_JSON='${{ steps.filter.outputs.any_changed_files }}'
           SERVICES=$(echo "$FILES_JSON" | jq -r '[.[] | capture("src/(?<service>[^/]+)/.*") | .service] | unique | join(",")')
-          echo "services=$SERVICES" >> $GITHUB_ENV
+          
+          if [ -z "$SERVICES" ]; then
+            echo "No microservices changed. Skipping build."
+            echo "::set-output name=services::"
+            exit 0
+          fi
+          
+          echo "Changed Services: $SERVICES"
           echo "::set-output name=services::$SERVICES"
         shell: bash
 
@@ -44,7 +54,7 @@ jobs:
           DOTNET_SERVICES=""
           JAVA_SERVICES=""
 
-          for service in $(echo $services | tr ',' ' '); do
+          for service in $(echo ${{ steps.extract.outputs.services }} | tr ',' ' '); do
             if find src/$service -type f \( -name "*.csproj" -o -name "*.sln" \) | grep -q .; then
               DOTNET_SERVICES+="$service,"
             fi
@@ -56,8 +66,8 @@ jobs:
           DOTNET_SERVICES=${DOTNET_SERVICES%,}
           JAVA_SERVICES=${JAVA_SERVICES%,}
 
-          echo "dotnet_services=$DOTNET_SERVICES" >> $GITHUB_ENV
-          echo "java_services=$JAVA_SERVICES" >> $GITHUB_ENV
+          echo "Dotnet Services: $DOTNET_SERVICES"
+          echo "Java Services: $JAVA_SERVICES"
 
           echo "::set-output name=dotnet_services::$DOTNET_SERVICES"
           echo "::set-output name=java_services::$JAVA_SERVICES"
@@ -66,10 +76,16 @@ jobs:
   build-and-push:
     needs: modified_microservices
     runs-on: ubuntu-latest
-    if: needs.modified_microservices.outputs.changed_services != ''
+    if: ${{ needs.modified_microservices.outputs.changed_services != '' && needs.modified_microservices.outputs.changed_services != null }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
+
+      - name: Debug: Show changed services
+        run: |
+          echo "Changed Services: ${{ needs.modified_microservices.outputs.changed_services }}"
+          echo "Dotnet Services: ${{ needs.modified_microservices.outputs.dotnet_services }}"
+          echo "Java Services: ${{ needs.modified_microservices.outputs.java_services }}"
 
       - name: Login to GHCR
         run: |
