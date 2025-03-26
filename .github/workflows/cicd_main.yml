@@ -1,5 +1,5 @@
-name: Main CICD
-run-name: Running the CICD
+name: Detect File Changes
+run-name: Detecting File Changes
 
 on:
   push:
@@ -10,99 +10,26 @@ on:
       - main
 
 jobs:
-  modified_microservices:
+  detect_changes:
     runs-on: ubuntu-latest
-    outputs:
-      changed_services: ${{ steps.extract.outputs.services }}
-      dotnet_services: ${{ steps.detect_lang.outputs.dotnet_services }}
-      java_services: ${{ steps.detect_lang.outputs.java_services }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Detect changed microservices
-        id: filter
-        uses: dorny/paths-filter@v2
-        with:
-          filters: |
-            any_changed:
-              - 'src/**'
-
-      - name: Show changed files
-        run: echo "Changed Files: ${{ steps.filter.outputs.any_changed_files }}"
-
-      - name: Extract Microservice Names
-        id: extract
+      - name: Detect changed files
         run: |
-          FILES_JSON="${{ steps.filter.outputs.any_changed_files }}"
-          SERVICES=$(echo "$FILES_JSON" | jq -r '[.[] | capture("src/(?<service>[^/]+)/.*") | .service] | unique | join(",")')
+          git fetch origin main
+          CHANGED_FILES=$(git diff --name-only origin/main ${{ github.sha }})
 
-          if [ -z "$SERVICES" ]; then
-            echo "No microservices changed. Skipping build."
-            echo "services=" >> "$GITHUB_ENV"
+          if [ -z "$CHANGED_FILES" ]; then
+            echo "No files changed."
             exit 0
           fi
 
-          echo "Changed Services: $SERVICES"
-          echo "services=$SERVICES" >> "$GITHUB_ENV"
-        shell: bash
+          echo "Changed Files:"
+          echo "$CHANGED_FILES"
 
-      - name: Detect if .NET or Java code changed
-        id: detect_lang
-        run: |
-          DOTNET_SERVICES=""
-          JAVA_SERVICES=""
-
-          for service in $(echo "$services" | tr ',' ' '); do
-            if find src/$service -type f \( -name "*.csproj" -o -name "*.sln" \) | grep -q .; then
-              DOTNET_SERVICES+="$service,"
-            fi
-            if find src/$service -type f \( -name "*.java" -o -name "pom.xml" -o -name "build.gradle" \) | grep -q .; then
-              JAVA_SERVICES+="$service,"
-            fi
-          done
-
-          DOTNET_SERVICES=${DOTNET_SERVICES%,}
-          JAVA_SERVICES=${JAVA_SERVICES%,}
-
-          echo "dotnet_services=$DOTNET_SERVICES" >> "$GITHUB_ENV"
-          echo "java_services=$JAVA_SERVICES" >> "$GITHUB_ENV"
-        shell: bash
-
-  build-and-push:
-    needs: modified_microservices
-    runs-on: ubuntu-latest
-    if: ${{ env.services != '' }}
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v3
-
-      - name: Debug: Show changed services
-        run: |
-          echo "Changed Services: $services"
-          echo "Dotnet Services: $dotnet_services"
-          echo "Java Services: $java_services"
-
-      - name: Login to GHCR
-        run: |
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
-
-      - name: Build and Push Changed Microservices
-        run: |
-          for service in $(echo "$services" | tr ',' ' '); do
-            IMAGE_NAME="ghcr.io/${{ github.repository }}/$service:latest"
-
-            if echo "$dotnet_services" | grep -wq "$service"; then
-              BUILD_CONTEXT="."
-            else
-              BUILD_CONTEXT="src/$service"
-            fi
-
-            DOCKERFILE="src/$service/Dockerfile"
-
-            echo "Building and pushing $IMAGE_NAME with context: $BUILD_CONTEXT"
-
-            docker build -t "$IMAGE_NAME" -f "$DOCKERFILE" "$BUILD_CONTEXT"
-            docker push "$IMAGE_NAME"
-          done
-        shell: bash
+      - name: Debug: Show changed files
+        run: echo "Changed Files: $CHANGED_FILES"
+        env:
+          CHANGED_FILES: ${{ steps.detect_files.outputs.changed_files }}
