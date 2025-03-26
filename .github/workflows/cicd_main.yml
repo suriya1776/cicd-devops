@@ -28,7 +28,7 @@ jobs:
             any_changed:
               - 'src/**'
 
-      - name: Debug: Show changed files
+      - name: Show changed files
         run: echo "Changed Files: ${{ steps.filter.outputs.any_changed_files }}"
 
       - name: Extract Microservice Names
