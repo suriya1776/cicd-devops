@@ -1,0 +1,7 @@
+microservices:
+  - name: accounting
+    language: dotnet
+    build_context: .
+  - name: ad
+    language: java
+    build_context: src/ad
