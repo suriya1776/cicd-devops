@@ -22,10 +22,10 @@ jobs:
           dotnet-version: '6.0.x' # Adjust based on your project
 
       - name: Restore dependencies
-        run: dotnet restore
+        run: dotnet restore path/to/your-solution.sln # Change to your actual .sln file
 
       - name: Build .NET solution
-        run: dotnet build --configuration Release --no-restore
+        run: dotnet build path/to/your-solution.sln --configuration Release --no-restore
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
