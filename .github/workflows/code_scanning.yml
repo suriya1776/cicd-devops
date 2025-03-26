@@ -1,27 +1,24 @@
-name: CodeQL Analysis
-
-on:
-  push:
-    branches: [main, master]
-  pull_request:
-    branches: [main, master]
-  schedule:
-    - cron: '0 3 * * 1' # Runs every Monday at 03:00 UTC
-
+...
+...
 jobs:
-  CodeQL-Analysis:
-    runs-on: ubuntu-latest
-
+  run-codeql-scan:
+    runs-on: [self-hosted]
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v3
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-
-
-      - name: Initialize CodeQL
-        uses: github/codeql-action/init@v2
+      - uses: actions/setup-java@v4
         with:
-          languages: 'csharp, java' # Use 'csharp' for .NET code
+          distribution: 'temurin'
+          java-version: '21'
+          ## if you need to generate a specific Maven settings.xml config file
+          ## refer to: https://docs.github.com/en/actions/publishing-packages/publishing-java-packages-with-maven
+          ...
+          ...
 
-      - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+      - name: Run the scan against the codebase
+        id: run-scan
+        uses: tonys-code-base/run-codeql-analysis-action@master
+        with:
+          language_to_scan: java
+          token: ${{ secrets.GITHUB_TOKEN }}
