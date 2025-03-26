@@ -24,7 +24,6 @@ jobs:
         id: filter
         uses: dorny/paths-filter@v2
         with:
-          list-files: json
           filters: |
             any_changed:
               - 'src/**'
@@ -37,15 +36,15 @@ jobs:
         run: |
           FILES_JSON='${{ steps.filter.outputs.any_changed_files }}'
           SERVICES=$(echo "$FILES_JSON" | jq -r '[.[] | capture("src/(?<service>[^/]+)/.*") | .service] | unique | join(",")')
-          
+
           if [ -z "$SERVICES" ]; then
             echo "No microservices changed. Skipping build."
-            echo "::set-output name=services::"
+            echo "services=" >> "$GITHUB_ENV"
             exit 0
           fi
-          
+
           echo "Changed Services: $SERVICES"
-          echo "::set-output name=services::$SERVICES"
+          echo "services=$SERVICES" >> "$GITHUB_ENV"
         shell: bash
 
       - name: Detect if .NET or Java code changed
@@ -54,7 +53,7 @@ jobs:
           DOTNET_SERVICES=""
           JAVA_SERVICES=""
 
-          for service in $(echo ${{ steps.extract.outputs.services }} | tr ',' ' '); do
+          for service in $(echo "$services" | tr ',' ' '); do
             if find src/$service -type f \( -name "*.csproj" -o -name "*.sln" \) | grep -q .; then
               DOTNET_SERVICES+="$service,"
             fi
@@ -66,26 +65,23 @@ jobs:
           DOTNET_SERVICES=${DOTNET_SERVICES%,}
           JAVA_SERVICES=${JAVA_SERVICES%,}
 
-          echo "Dotnet Services: $DOTNET_SERVICES"
-          echo "Java Services: $JAVA_SERVICES"
-
-          echo "::set-output name=dotnet_services::$DOTNET_SERVICES"
-          echo "::set-output name=java_services::$JAVA_SERVICES"
+          echo "dotnet_services=$DOTNET_SERVICES" >> "$GITHUB_ENV"
+          echo "java_services=$JAVA_SERVICES" >> "$GITHUB_ENV"
         shell: bash
 
   build-and-push:
     needs: modified_microservices
     runs-on: ubuntu-latest
-    if: ${{ needs.modified_microservices.outputs.changed_services != '' && needs.modified_microservices.outputs.changed_services != null }}
+    if: ${{ env.services != '' }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v3
 
       - name: Debug: Show changed services
         run: |
-          echo "Changed Services: ${{ needs.modified_microservices.outputs.changed_services }}"
-          echo "Dotnet Services: ${{ needs.modified_microservices.outputs.dotnet_services }}"
-          echo "Java Services: ${{ needs.modified_microservices.outputs.java_services }}"
+          echo "Changed Services: $services"
+          echo "Dotnet Services: $dotnet_services"
+          echo "Java Services: $java_services"
 
       - name: Login to GHCR
         run: |
@@ -93,21 +89,20 @@ jobs:
 
       - name: Build and Push Changed Microservices
         run: |
-          for service in $(echo ${{ needs.modified_microservices.outputs.changed_services }} | tr ',' ' '); do
+          for service in $(echo "$services" | tr ',' ' '); do
             IMAGE_NAME="ghcr.io/${{ github.repository }}/$service:latest"
 
-            # Determine Build Context and Dockerfile Path
-            if [[ ",${{ needs.modified_microservices.outputs.dotnet_services }}," == *",$service,"* ]]; then
+            if echo "$dotnet_services" | grep -wq "$service"; then
               BUILD_CONTEXT="."
-              DOCKERFILE="src/$service/Dockerfile"
             else
               BUILD_CONTEXT="src/$service"
-              DOCKERFILE="src/$service/Dockerfile"
             fi
+
+            DOCKERFILE="src/$service/Dockerfile"
 
             echo "Building and pushing $IMAGE_NAME with context: $BUILD_CONTEXT"
 
-            docker build -t $IMAGE_NAME -f $DOCKERFILE $BUILD_CONTEXT
-            docker push $IMAGE_NAME
+            docker build -t "$IMAGE_NAME" -f "$DOCKERFILE" "$BUILD_CONTEXT"
+            docker push "$IMAGE_NAME"
           done
         shell: bash
