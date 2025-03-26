@@ -25,3 +25,10 @@ jobs:
          filters: |
            any_changed:
               - 'src/**'
+      - name: Extract Microservice Names
+        id: extract
+        run: |
+          echo "Changed files: ${{ steps.filter.outputs.any_changed_files }}"
+          SERVICES=$(echo '${{ steps.filter.outputs.any_changed_files }}' | jq -r '[.[] | capture("src/(?<service>[^/]+)/.*") | .service] | unique | join(",")')
+          echo "services=$SERVICES" >> $GITHUB_ENV
+        shell: bash
