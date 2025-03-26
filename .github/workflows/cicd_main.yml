@@ -29,7 +29,7 @@ jobs:
       - name: Identify Modified Microservices
         id: get-modified
         run: |
-          echo "Identifying modified microservices.."
+          echo "Identifying modified microservices..."
           
           if [ -z "${{ github.event.before }}" ] || ! git rev-parse "${{ github.event.before }}" >/dev/null 2>&1; then
             echo "No valid previous commit found. This might be the first commit."
