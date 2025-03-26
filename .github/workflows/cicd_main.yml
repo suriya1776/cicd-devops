@@ -17,11 +17,12 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
-
-      - name: detect the microservice folder
-        uses: dorny/paths-filter@v3
-           id: detection
-           with: 
-            filters:
-              src:
+      - name: Modifies files
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+               src:
                 - 'src/**'
+
+
