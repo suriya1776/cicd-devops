@@ -16,16 +16,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v3
 
-      - name: Setup .NET
-        uses: actions/setup-dotnet@v3
-        with:
-          dotnet-version: '6.0.x' # Adjust based on your project
 
-      - name: Restore dependencies
-        run: dotnet restore src/accounting/Accounting.sln # Change to your actual .sln file
-
-      - name: Build .NET solution
-        run: dotnet build src/accounting/Accounting.sln --configuration Release --no-restore
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
