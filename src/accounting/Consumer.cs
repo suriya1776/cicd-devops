@@ -25,7 +25,7 @@ internal class Consumer : IDisposable
         _consumer = BuildConsumer(servers);
         _consumer.Subscribe(TopicName);
 
-        _logger.LogInformation($"Connecting to Kafka2: {servers}");
+        _logger.LogInformation($"Connecting to Kafka3: {servers}");
     }
 
     public void StartListening()
