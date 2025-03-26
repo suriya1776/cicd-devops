@@ -18,7 +18,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
       - name: Modifies files
-      - uses: dorny/paths-filter@v3
+        uses: dorny/paths-filter@v3
         id: changes
         with:
           filters: |
