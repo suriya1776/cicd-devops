@@ -5,7 +5,7 @@ pipeline {
         GHCR_REGISTRY = "ghcr.io"
         OWNER = "suriya1776"
         MS1 = "accounting"
-        MS1 = "ad"
+        MS2 = "ad"
         VERSION = "latest"
         GHCR_PAT = credentials('ghcr-token')  // Use a stored Jenkins secret
     }
