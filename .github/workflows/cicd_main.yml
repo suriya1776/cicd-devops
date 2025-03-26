@@ -1,34 +1,129 @@
-name: Building the microservice
-run-name: Building the microservice
+name: CICD Main yaml
 
 on:
- push:
-  branches: 
-    - main
- pull_request:
-  branches:
-    - main
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+
+permissions:
+  contents: read
 
 jobs:
-  Detect_microservice:
+  identify-modified-microservices:
     runs-on: ubuntu-latest
-    outputs: 
-      changed_service: "None" 
+    outputs:
+      services: ${{ steps.get-modified.outputs.services }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
-      - name: Modifies files
-        uses: dorny/paths-filter@v3
-        id: changes
+      - name: Checkout repository
+        uses: actions/checkout@v4
         with:
-          filters: |
-               src:
-                - 'src/**'
-      - name: Print changed files
+          fetch-depth: 0  # Fetch full history for accurate diffs
+
+      - name: Identify Modified Microservices
+        id: get-modified
         run: |
-          if [[ "${{ steps.changes.outputs.src }}" == "true" ]]; then
-            git diff --name-only HEAD^ HEAD | grep '^src/' || echo "No src files changed"
+          echo "Identifying modified microservices..."
+          
+          if [ -z "${{ github.event.before }}" ] || ! git rev-parse "${{ github.event.before }}" >/dev/null 2>&1; then
+            echo "No valid previous commit found. This might be the first commit."
+            echo "services=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          # Get list of modified microservices
+          MODIFIED=$(git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | awk -F/ '/^src\// {print $2}' | sort -u | grep -E '^[a-zA-Z0-9_-]+$' || echo "")
+          if [[ -z "$MODIFIED" ]]; then
+            echo "No microservices changed."
+            echo "services=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          
+          JSON_ARRAY=$(echo "$MODIFIED" | jq -R -c 'split("\n") | map(select(length > 0))')
+          echo "Modified microservices: $JSON_ARRAY"
+          echo "services=$JSON_ARRAY" >> $GITHUB_OUTPUT
+
+  build-images:
+    needs: identify-modified-microservices
+    runs-on: ubuntu-latest
+    if: ${{ needs.identify-modified-microservices.outputs.services != '[]' && needs.identify-modified-microservices.outputs.services != '' }}
+    strategy:
+      matrix:
+        service: ${{ fromJson(needs.identify-modified-microservices.outputs.services) }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine Dockerfile Path and Build Context
+        id: find-dockerfile
+        run: |
+          DEFAULT_PATH="src/${{ matrix.service }}/Dockerfile"
+          IS_DOTNET_SERVICE=false
+          IS_GOLANG_SERVICE=false
+          
+          # Check if the Dockerfile exists in the default location
+          if [ -f "$DEFAULT_PATH" ]; then
+            echo "Dockerfile found at $DEFAULT_PATH"
+            DOCKERFILE_PATH=$DEFAULT_PATH
+            BUILD_CONTEXT="src/${{ matrix.service }}/"
           else
-            echo "No changes detected in src/"
+            # Find the Dockerfile dynamically if not in the default location
+            ALT_PATH=$(find src -type f -name 'Dockerfile' | grep "/${{ matrix.service }}/" | head -n 1 || echo "")
+            if [[ -n "$ALT_PATH" ]]; then
+              BUILD_CONTEXT=$(dirname "$ALT_PATH")
+              DOCKERFILE_PATH=$ALT_PATH
+              echo "Found alternative Dockerfile at $DOCKERFILE_PATH"
+            else
+              echo "No Dockerfile found for ${{ matrix.service }}. Skipping build."
+              echo "dockerfile_exists=false" >> $GITHUB_ENV
+              exit 0
+            fi
           fi
 
+          # Check if it's a .NET microservice (by detecting .csproj file)
+          if find "$BUILD_CONTEXT" -name "*.csproj" | grep -q .; then
+            IS_DOTNET_SERVICE=true
+          fi
+
+          # Check if it's a Golang microservice (by detecting go.mod or main.go)
+          if find "$BUILD_CONTEXT" -name "go.mod" -o -name "main.go" | grep -q .; then
+            IS_GOLANG_SERVICE=true
+          fi
+
+          # Set Build Context based on .NET, Golang, or other services
+          if [ "$IS_DOTNET_SERVICE" = true ]; then
+            BUILD_CONTEXT=.  # Use Dockerfile's directory as root context
+            echo "Detected .NET microservice. Using root path as build context: $BUILD_CONTEXT"
+          elif [ "$IS_GOLANG_SERVICE" = true ]; then
+            BUILD_CONTEXT=.  # Use the project root for Golang builds
+            echo "Detected Golang microservice. Using root path as build context: $BUILD_CONTEXT"
+          else
+            BUILD_CONTEXT="src/${{ matrix.service }}/"
+            echo "Non-.NET, Non-Golang microservice. Using src/microservice as build context: $BUILD_CONTEXT"
+          fi
+
+          # Export variables
+          echo "DOCKERFILE_PATH=$DOCKERFILE_PATH" >> $GITHUB_ENV
+          echo "BUILD_CONTEXT=$BUILD_CONTEXT" >> $GITHUB_ENV
+          echo "dockerfile_exists=true" >> $GITHUB_ENV
+
+          
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.DOCKER_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+      
+      - name: Build and Push Docker Image
+        if: env.dockerfile_exists == 'true'
+        run: |
+          IMAGE_NAME=ghcr.io/${{ github.repository_owner }}/${{ matrix.service }}:latest
+          
+          echo "Building Docker image for ${{ matrix.service }}..."
+          docker build -t $IMAGE_NAME -f $DOCKERFILE_PATH $BUILD_CONTEXT
+
+          echo "Pushing Docker image to GitHub Container Registry..."
+          docker push $IMAGE_NAME
