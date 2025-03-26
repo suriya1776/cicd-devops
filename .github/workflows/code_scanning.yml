@@ -19,18 +19,18 @@ jobs:
       - name: Setup .NET
         uses: actions/setup-dotnet@v3
         with:
-          dotnet-version: '6.0.x' # Change to your .NET version
+          dotnet-version: '6.0.x' # Adjust based on your project
 
-      - name: Setup Java
-        uses: actions/setup-java@v3
-        with:
-          distribution: 'temurin' # Use 'adopt' or 'zulu' if needed
-          java-version: '17' # Change based on your Java version
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build .NET solution
+        run: dotnet build --configuration Release --no-restore
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v2
         with:
-          languages: 'csharp, java'
+          languages: 'csharp, java' # Use 'csharp' for .NET code
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v2
