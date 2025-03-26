@@ -34,7 +34,7 @@ jobs:
       - name: Extract Microservice Names
         id: extract
         run: |
-          FILES_JSON='${{ steps.filter.outputs.any_changed_files }}'
+          FILES_JSON="${{ steps.filter.outputs.any_changed_files }}"
           SERVICES=$(echo "$FILES_JSON" | jq -r '[.[] | capture("src/(?<service>[^/]+)/.*") | .service] | unique | join(",")')
 
           if [ -z "$SERVICES" ]; then
