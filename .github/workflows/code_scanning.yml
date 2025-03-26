@@ -1,0 +1,36 @@
+name: CodeQL Analysis
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  schedule:
+    - cron: '0 3 * * 1' # Runs every Monday at 03:00 UTC
+
+jobs:
+  CodeQL-Analysis:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '6.0.x' # Change to your .NET version
+
+      - name: Setup Java
+        uses: actions/setup-java@v3
+        with:
+          distribution: 'temurin' # Use 'adopt' or 'zulu' if needed
+          java-version: '17' # Change based on your Java version
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v2
+        with:
+          languages: 'csharp, java'
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
