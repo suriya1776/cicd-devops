@@ -24,5 +24,6 @@ jobs:
           filters: |
                src:
                 - 'src/**'
-
+      - name: Print changed files
+        run: echo "Changed files: ${{ steps.changes.outputs.src_files }}"
 
