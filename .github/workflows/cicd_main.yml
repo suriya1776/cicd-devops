@@ -14,6 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       changed_services: ${{ steps.filter.outputs.any_changed }}
+      dotnet_services: ${{ steps.detect_lang.outputs.dotnet_services }}
+      java_services: ${{ steps.detect_lang.outputs.java_services }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
@@ -39,4 +41,35 @@ jobs:
           SERVICES=$(echo "$FILES_JSON" | jq -r '[.[] | capture("src/(?<service>[^/]+)/.*") | .service] | unique | join(",")')
           echo "Detected services: $SERVICES"
           echo "services=$SERVICES" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Detect if .NET or Java code changed
+        id: detect_lang
+        run: |
+          DOTNET_SERVICES=""
+          JAVA_SERVICES=""
+
+          for service in $(echo $services | tr ',' ' '); do
+            if find src/$service -type f \( -name "*.csproj" -o -name "*.sln" \) | grep -q .; then
+              DOTNET_SERVICES+="$service,"
+            fi
+            if find src/$service -type f \( -name "*.java" -o -name "pom.xml" -o -name "build.gradle" \) | grep -q .; then
+              JAVA_SERVICES+="$service,"
+            fi
+          done
+
+          DOTNET_SERVICES=${DOTNET_SERVICES%,} # Remove trailing comma
+          JAVA_SERVICES=${JAVA_SERVICES%,}     # Remove trailing comma
+
+          echo "dotnet_services=$DOTNET_SERVICES" >> $GITHUB_ENV
+          echo "java_services=$JAVA_SERVICES" >> $GITHUB_ENV
+
+          echo "::set-output name=dotnet_services::$DOTNET_SERVICES"
+          echo "::set-output name=java_services::$JAVA_SERVICES"
+        shell: bash
+
+      - name: Debug Language Detection
+        run: |
+          echo "Changed .NET services: ${{ steps.detect_lang.outputs.dotnet_services }}"
+          echo "Changed Java services: ${{ steps.detect_lang.outputs.java_services }}"
         shell: bash
