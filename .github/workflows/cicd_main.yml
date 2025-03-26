@@ -77,7 +77,19 @@ jobs:
         run: |
           for service in $(echo ${{ needs.modified_microservices.outputs.changed_services }} | tr ',' ' '); do
             IMAGE_NAME="ghcr.io/${{ github.repository }}/$service:latest"
-            echo "Building and pushing $IMAGE_NAME"
-            docker build -t $IMAGE_NAME -f src/$service/Dockerfile src/$service
+
+            # Determine Build Context and Dockerfile Path
+            if [[ ",${{ needs.modified_microservices.outputs.dotnet_services }}," == *",$service,"* ]]; then
+              BUILD_CONTEXT="."
+              DOCKERFILE="src/$service/Dockerfile"
+            else
+              BUILD_CONTEXT="src/$service"
+              DOCKERFILE="src/$service/Dockerfile"
+            fi
+
+            echo "Building and pushing $IMAGE_NAME with context: $BUILD_CONTEXT"
+
+            docker build -t $IMAGE_NAME -f $DOCKERFILE $BUILD_CONTEXT
             docker push $IMAGE_NAME
           done
+        shell: bash
