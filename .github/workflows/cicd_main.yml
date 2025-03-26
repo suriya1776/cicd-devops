@@ -1,2 +1,10 @@
 run: Main cicd 
 run-name: Running the CICD 
+
+on:
+ push:
+  branches:
+   - main
+  pull_request:
+   branches:
+    - main
