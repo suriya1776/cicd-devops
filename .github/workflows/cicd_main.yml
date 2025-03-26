@@ -71,24 +71,13 @@ jobs:
 
       - name: Login to GHCR
         run: |
-          echo "${{ secrets.DOCKER_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
 
-      - name: Build and Push .NET Images
-        if: needs.modified_microservices.outputs.dotnet_services != ''
+      - name: Build and Push Images
         run: |
-          for service in $(echo ${{ needs.modified_microservices.outputs.dotnet_services }} | tr ',' ' '); do
+          for service in $(echo ${{ needs.modified_microservices.outputs.changed_services }} | tr ',' ' '); do
             IMAGE_NAME="ghcr.io/${{ github.repository }}/$service:latest"
             echo "Building and pushing $IMAGE_NAME"
-            docker build -t $IMAGE_NAME .
-            docker push $IMAGE_NAME
-          done
-
-      - name: Build and Push Java Images
-        if: needs.modified_microservices.outputs.java_services != ''
-        run: |
-          for service in $(echo ${{ needs.modified_microservices.outputs.java_services }} | tr ',' ' '); do
-            IMAGE_NAME="ghcr.io/${{ github.repository }}/$service:latest"
-            echo "Building and pushing $IMAGE_NAME"
-            docker build -t $IMAGE_NAME src/$service
+            docker build -t $IMAGE_NAME -f src/$service/Dockerfile src/$service
             docker push $IMAGE_NAME
           done
