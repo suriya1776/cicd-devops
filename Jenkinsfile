@@ -1,10 +1,5 @@
 pipeline {
-    agent {
-        docker {
-            image 'docker:20.10.16'   // Use a Docker image with Docker CLI installed
-            args '--privileged -v /var/run/docker.sock:/var/run/docker.sock'
-        }
-    }
+    agent any
 
     environment {
         GHCR_REGISTRY = "ghcr.io"
@@ -34,10 +29,13 @@ pipeline {
         stage('Build and Push Microservice 1') {
             steps {
                 script {
-                    sh '''
-                        docker build -t $GHCR_REGISTRY/$OWNER/$MS1:$VERSION -f src/$MS1/Dockerfile src/$MS1
-                        docker push $GHCR_REGISTRY/$OWNER/$MS1:$VERSION
-                    '''
+                    // Run docker commands inside a container that has Docker CLI available.
+                    docker.image('docker:20.10.16').inside('--privileged -v /var/run/docker.sock:/var/run/docker.sock') {
+                        sh '''
+                            docker build -t $GHCR_REGISTRY/$OWNER/$MS1:$VERSION -f src/$MS1/Dockerfile src/$MS1
+                            docker push $GHCR_REGISTRY/$OWNER/$MS1:$VERSION
+                        '''
+                    }
                 }
             }
         }
@@ -45,10 +43,12 @@ pipeline {
         stage('Build and Push Microservice 2') {
             steps {
                 script {
-                    sh '''
-                        docker build -t $GHCR_REGISTRY/$OWNER/$MS2:$VERSION -f src/$MS2/Dockerfile src/$MS2
-                        docker push $GHCR_REGISTRY/$OWNER/$MS2:$VERSION
-                    '''
+                    docker.image('docker:20.10.16').inside('--privileged -v /var/run/docker.sock:/var/run/docker.sock') {
+                        sh '''
+                            docker build -t $GHCR_REGISTRY/$OWNER/$MS2:$VERSION -f src/$MS2/Dockerfile src/$MS2
+                            docker push $GHCR_REGISTRY/$OWNER/$MS2:$VERSION
+                        '''
+                    }
                 }
             }
         }
