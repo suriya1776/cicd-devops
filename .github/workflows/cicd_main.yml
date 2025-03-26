@@ -25,5 +25,10 @@ jobs:
                src:
                 - 'src/**'
       - name: Print changed files
-        run: echo "Changed files: ${{ steps.changes.outputs.src_files }}"
+        run: |
+          if [[ "${{ steps.changes.outputs.src }}" == "true" ]]; then
+            git diff --name-only HEAD^ HEAD | grep '^src/' || echo "No src files changed"
+          else
+            echo "No changes detected in src/"
+          fi
 
